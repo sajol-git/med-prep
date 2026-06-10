@@ -1,3 +1,7 @@
+import java.net.URL
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
@@ -50,7 +54,7 @@ android {
   defaultConfig {
     applicationId = "com.aistudio.medprep.wkvypa"
     minSdk = 24
-    targetSdk = 36
+    targetSdk = 34
     versionCode = 1
     versionName = "1.0"
 
