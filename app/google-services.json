@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "671831869873",
+    "firebase_url": "https://studytracker-bd-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "studytracker-bd",
+    "storage_bucket": "studytracker-bd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:671831869873:android:10988f5aae4d348ceb1590",
+        "android_client_info": {
+          "package_name": "com.aistudio.medprep.wkvypa"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "671831869873-42flh4g8adsplje9gl23qdkmf040mq31.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCt3N741PnyufRgHdf43wtH02KmjT-tw9s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "671831869873-42flh4g8adsplje9gl23qdkmf040mq31.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
