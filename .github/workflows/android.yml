@@ -33,11 +33,6 @@ jobs:
           fi
         fi
 
-    - name: Ensure clean Gradle Wrapper jar
-      run: |
-        mkdir -p gradle/wrapper
-        curl -L -s -o gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v9.3.1/gradle/wrapper/gradle-wrapper.jar
-
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
       
