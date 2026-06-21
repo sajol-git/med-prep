@@ -10,6 +10,31 @@ plugins {
   alias(libs.plugins.secrets)
 }
 
+// Download the Hind Siliguri offline fonts at Gradle configuration time to guarantee their presence during compile and packaging
+val fontResDir = file("src/main/res/font")
+if (!fontResDir.exists()) {
+  fontResDir.mkdirs()
+}
+val fontUrlsToDownload = mapOf(
+  "hind_siliguri_regular.ttf" to "https://raw.githubusercontent.com/google/fonts/main/ofl/hindsiliguri/HindSiliguri-Regular.ttf",
+  "hind_siliguri_medium.ttf" to "https://raw.githubusercontent.com/google/fonts/main/ofl/hindsiliguri/HindSiliguri-Medium.ttf",
+  "hind_siliguri_semibold.ttf" to "https://raw.githubusercontent.com/google/fonts/main/ofl/hindsiliguri/HindSiliguri-SemiBold.ttf",
+  "hind_siliguri_bold.ttf" to "https://raw.githubusercontent.com/google/fonts/main/ofl/hindsiliguri/HindSiliguri-Bold.ttf"
+)
+fontUrlsToDownload.forEach { (name, urlStr) ->
+  val targetFile = file("src/main/res/font/$name")
+  if (!targetFile.exists() || targetFile.length() < 1000) {
+    try {
+      println("Auto-downloading font resource: $name")
+      URL(urlStr).openStream().use { inputStream ->
+        Files.copy(inputStream, targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+      }
+    } catch (e: Exception) {
+      println("Failed to auto-download font $name: ${e.message}")
+    }
+  }
+}
+
 android {
   namespace = "com.example"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
