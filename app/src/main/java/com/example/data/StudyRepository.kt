@@ -7,7 +7,8 @@ import kotlinx.coroutines.flow.Flow
 class StudyRepository(
     private val context: Context,
     private val studySessionDao: StudySessionDao,
-    private val syllabusCompletionDao: SyllabusCompletionDao
+    private val syllabusCompletionDao: SyllabusCompletionDao,
+    private val chapterExamResultDao: ChapterExamResultDao
 ) {
     val allSessions: Flow<List<StudySession>> = studySessionDao.getAllSessions()
 
@@ -51,5 +52,28 @@ class StudyRepository(
 
     suspend fun clearAllSyllabusCompletions() {
         syllabusCompletionDao.clearAllCompletions()
+    }
+
+    // --- Chapter Exam Results APIs ---
+    val allChapterExamResults: Flow<List<ChapterExamResult>> = chapterExamResultDao.getAllResultsFlow()
+
+    fun getResultsForChapter(chapterKey: String): Flow<List<ChapterExamResult>> {
+        return chapterExamResultDao.getResultsForChapterFlow(chapterKey)
+    }
+
+    suspend fun insertChapterExamResult(result: ChapterExamResult) {
+        chapterExamResultDao.insertResult(result)
+    }
+
+    suspend fun deleteChapterExamResult(id: Int) {
+        chapterExamResultDao.deleteResult(id)
+    }
+
+    suspend fun allExamResultsImmediate(): List<ChapterExamResult> {
+        return chapterExamResultDao.getAllResultsImmediate()
+    }
+
+    suspend fun clearAllChapterExamResults() {
+        chapterExamResultDao.clearAllResults()
     }
 }

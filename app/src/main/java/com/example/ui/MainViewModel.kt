@@ -91,6 +91,44 @@ class MainViewModel(
         }
     }
 
+    val chapterExamResults: StateFlow<Map<String, List<com.example.data.ChapterExamResult>>> = repository.allChapterExamResults
+        .map { list -> list.groupBy { it.chapterKey } }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyMap()
+        )
+
+    fun addChapterExamResult(subjectName: String, chapterName: String, percentage: Double) {
+        val key = "${subjectName}_${chapterName}"
+        viewModelScope.launch {
+            repository.insertChapterExamResult(
+                com.example.data.ChapterExamResult(
+                    chapterKey = key,
+                    subjectName = subjectName,
+                    chapterName = chapterName,
+                    percentage = percentage
+                )
+            )
+            if (backupManager.autoBackupEnabled && backupManager.isUserSignedIn) {
+                backupManager.performBackup()
+            }
+        }
+    }
+
+    fun deleteChapterExamResult(id: Int) {
+        viewModelScope.launch {
+            repository.deleteChapterExamResult(id)
+            if (backupManager.autoBackupEnabled && backupManager.isUserSignedIn) {
+                backupManager.performBackup()
+            }
+        }
+    }
+
+    suspend fun getExamResultsImmediate(): List<com.example.data.ChapterExamResult> {
+        return repository.allExamResultsImmediate()
+    }
+
     // For simplicity, we hardcode today's studies to match screenshot if DB is empty,
     // otherwise we would calculate from DB.
     private val _dbSessions = repository.allSessions.stateIn(
@@ -272,6 +310,20 @@ class MainViewModel(
             completionsArray.put(obj)
         }
         root.put("syllabus_completions", completionsArray)
+
+        // 3. Exam results
+        val examResultsArray = org.json.JSONArray()
+        repository.allExamResultsImmediate().forEach { e ->
+            val obj = org.json.JSONObject().apply {
+                put("chapterKey", e.chapterKey)
+                put("subjectName", e.subjectName)
+                put("chapterName", e.chapterName)
+                put("percentage", e.percentage)
+                put("timestamp", e.timestamp)
+            }
+            examResultsArray.put(obj)
+        }
+        root.put("chapter_exam_results", examResultsArray)
         
         return root.toString(2)
     }
@@ -319,6 +371,24 @@ class MainViewModel(
                     )
                 }
             }
+
+            val examResultsToRestore = mutableListOf<com.example.data.ChapterExamResult>()
+            if (root.has("chapter_exam_results")) {
+                val eArray = root.getJSONArray("chapter_exam_results")
+                for (i in 0 until eArray.length()) {
+                    val eObj = eArray.getJSONObject(i)
+                    examResultsToRestore.add(
+                        com.example.data.ChapterExamResult(
+                            id = 0,
+                            chapterKey = eObj.optString("chapterKey", ""),
+                            subjectName = eObj.optString("subjectName", ""),
+                            chapterName = eObj.optString("chapterName", ""),
+                            percentage = eObj.optDouble("percentage", 0.0),
+                            timestamp = eObj.optLong("timestamp", System.currentTimeMillis())
+                        )
+                    )
+                }
+            }
             
             // Clear and insert
             repository.clearAllSessions()
@@ -330,8 +400,15 @@ class MainViewModel(
             if (completionsToRestore.isNotEmpty()) {
                 repository.insertSyllabusCompletions(completionsToRestore)
             }
+
+            repository.clearAllChapterExamResults()
+            if (examResultsToRestore.isNotEmpty()) {
+                examResultsToRestore.forEach {
+                    repository.insertChapterExamResult(it)
+                }
+            }
             
-            Result.success("ম্যানুয়াল রিস্টোর সফল! ${sessionsToRestore.size} টি সেশন ও ${completionsToRestore.size} টি সিলেবাস অগ্রগতি পুনরুদ্ধার করা হয়েছে।")
+            Result.success("ম্যানুয়াল রিস্টোর সফল! ${sessionsToRestore.size} টি সেশন, ${completionsToRestore.size} টি সিলেবাস অগ্রগতি ও ${examResultsToRestore.size} টি পরীক্ষার ফলাফল পুনরুদ্ধার করা হয়েছে।")
         } catch (e: Exception) {
             Result.failure(e)
         }

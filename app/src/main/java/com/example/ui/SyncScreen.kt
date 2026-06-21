@@ -96,6 +96,55 @@ fun SystemScreen(viewModel: MainViewModel) {
         }
     )
 
+    val exportSheetLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv"),
+        onResult = { uri ->
+            if (uri != null) {
+                scope.launch {
+                    try {
+                        isManualSyncLoading = true
+                        val results = viewModel.getExamResultsImmediate()
+                        val csvBuilder = StringBuilder()
+                        csvBuilder.append("Subject,Chapter,Exam Number,Percentage (%),Date & Time\n")
+                        
+                        val groupedByChapter = results.groupBy { it.chapterKey }
+                        
+                        results.sortedBy { it.timestamp }.forEach { e ->
+                            val chapList = groupedByChapter[e.chapterKey] ?: emptyList()
+                            val sortedChapList = chapList.sortedBy { it.timestamp }
+                            val indexInChapter = sortedChapList.indexOfFirst { it.id == e.id }
+                            val examNumStr = when (indexInChapter + 1) {
+                                1 -> "1st Exam"
+                                2 -> "2nd Exam"
+                                3 -> "3rd Exam"
+                                else -> "${indexInChapter + 1}th Exam"
+                            }
+                            
+                            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+                            val dateStr = sdf.format(java.util.Date(e.timestamp))
+                            
+                            val cleanSubject = e.subjectName.replace("\"", "\"\"")
+                            val cleanChapter = e.chapterName.replace("\"", "\"\"")
+                            
+                            csvBuilder.append("\"$cleanSubject\",\"$cleanChapter\",\"$examNumStr\",${e.percentage},\"$dateStr\"\n")
+                        }
+                        
+                        context.contentResolver.openOutputStream(uri)?.use { out ->
+                            out.write(csvBuilder.toString().toByteArray(Charsets.UTF_8))
+                        }
+                        manualStatusMessage = "পরীক্ষার সমস্ত ফলাফলের এক্সেল/সিএসভি শীট সফলভাবে ডাউনলোড করা হয়েছে!"
+                        isManualStatusError = false
+                    } catch (e: Exception) {
+                        manualStatusMessage = "শীট ডাউনলোড ব্যর্থ হয়েছে: ${e.localizedMessage}"
+                        isManualStatusError = true
+                    } finally {
+                        isManualSyncLoading = false
+                    }
+                }
+            }
+        }
+    )
+
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
         onResult = { uri ->
@@ -679,6 +728,72 @@ fun SystemScreen(viewModel: MainViewModel) {
                                 Text("ফাইল আপলোড", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        // --- EXCEL/CSV EXAM SHEET DOWNLOAD PANEL ---
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = CardBackground),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Color(0xFF2D3748))
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF10B981).copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Description,
+                                contentDescription = "Exam Sheet",
+                                tint = Color(0xFF10B981),
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1.0f)) {
+                            Text(
+                                text = "পরীক্ষার ফলাফল এক্সেল শীট",
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "অধ্যায় ভিত্তিক সমস্ত পরীক্ষার ফলাফলের একটি এক্সেল (CSV) শীট ডিভাইসে ডাউনলোড করুন।",
+                                color = GrayText,
+                                fontSize = 11.sp,
+                                lineHeight = 16.sp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Button(
+                        onClick = {
+                            manualStatusMessage = null
+                            exportSheetLauncher.launch("medprep_exam_results.csv")
+                        },
+                        modifier = Modifier.fillMaxWidth().height(44.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = "Download Sheet", modifier = Modifier.size(16.dp), tint = Color(0xFF0C1017))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            "ফলাফলের এক্সেল শীট ডাউনলোড করুন",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF0C1017)
+                        )
                     }
                 }
             }

@@ -184,12 +184,6 @@ class TimerService : Service() {
                     currentSeconds.value = elapsed
                 }
 
-                if (isSoundEnabled) {
-                    try {
-                        toneGen?.startTone(ToneGenerator.TONE_PROP_BEEP, 30)
-                    } catch (e: Exception) {}
-                }
-
                 updateNotification()
                 delay(1000)
             }

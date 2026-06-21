@@ -24,7 +24,7 @@ class MedPrepApplication : Application() {
     }
 
     val repository: StudyRepository by lazy {
-        StudyRepository(this, database.studySessionDao(), database.syllabusCompletionDao())
+        StudyRepository(this, database.studySessionDao(), database.syllabusCompletionDao(), database.chapterExamResultDao())
     }
 
     val backupManager: FirebaseBackupManager by lazy {

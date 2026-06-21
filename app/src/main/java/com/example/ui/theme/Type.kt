@@ -7,10 +7,10 @@ import androidx.compose.ui.text.font.FontWeight
 import com.example.R
 
 val HindSiliguri = FontFamily(
-    Font(R.font.hind_siliguri_regular, FontWeight.Normal),
-    Font(R.font.hind_siliguri_medium, FontWeight.Medium),
-    Font(R.font.hind_siliguri_semibold, FontWeight.SemiBold),
-    Font(R.font.hind_siliguri_bold, FontWeight.Bold)
+    Font(resId = R.font.hind_siliguri_regular, weight = FontWeight.Normal),
+    Font(resId = R.font.hind_siliguri_medium, weight = FontWeight.Medium),
+    Font(resId = R.font.hind_siliguri_semibold, weight = FontWeight.SemiBold),
+    Font(resId = R.font.hind_siliguri_bold, weight = FontWeight.Bold)
 )
 
 private val defaultTypography = Typography()

@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.rounded.Eco
 import androidx.compose.material.icons.rounded.Pets
 import androidx.compose.material.icons.rounded.Science
@@ -26,6 +27,11 @@ import androidx.compose.material.icons.rounded.HistoryEdu
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +41,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.shape.CircleShape
@@ -63,6 +71,7 @@ private fun getSubjectEnglish(subj: String): String {
 fun SyllabusScreen(viewModel: MainViewModel, onStartChapter: (String, String) -> Unit = {_,_ ->}) {
     val completedChapters by viewModel.completedSyllabusChapters.collectAsStateWithLifecycle()
     val recentSessions by viewModel.recentSessions.collectAsStateWithLifecycle()
+    val examResultsMap by viewModel.chapterExamResults.collectAsStateWithLifecycle()
 
     LazyColumn(
         modifier = Modifier
@@ -75,7 +84,7 @@ fun SyllabusScreen(viewModel: MainViewModel, onStartChapter: (String, String) ->
             TopAppBarSection()
         }
         items(viewModel.syllabusSubjects) { subject ->
-            ExpandableSubjectCard(subject, completedChapters, recentSessions, viewModel, onStartChapter)
+            ExpandableSubjectCard(subject, completedChapters, recentSessions, examResultsMap, viewModel, onStartChapter)
         }
         item {
             Spacer(modifier = Modifier.height(80.dp)) // padding for bottom nav
@@ -88,6 +97,7 @@ fun ExpandableSubjectCard(
     subject: SyllabusSubject,
     completedChapters: Set<String>,
     recentSessions: List<com.example.data.StudySession>,
+    examResultsMap: Map<String, List<com.example.data.ChapterExamResult>>,
     viewModel: MainViewModel,
     onStartChapter: (String, String) -> Unit
 ) {
@@ -163,11 +173,19 @@ fun ExpandableSubjectCard(
                             val chapterSessions = subjectSessions.filter {
                                 it.chapter.trim().equals(chapter.name.trim(), ignoreCase = true)
                             }
+                            val examResults = examResultsMap[key] ?: emptyList()
                             ChapterItemRow(
                                 subjectName = subject.subject,
                                 chapter = chapter,
                                 isChecked = isChecked,
                                 sessions = chapterSessions,
+                                examResults = examResults,
+                                onAddExamResult = { score ->
+                                    viewModel.addChapterExamResult(subject.subject, chapter.name, score)
+                                },
+                                onDeleteExamResult = { id ->
+                                    viewModel.deleteChapterExamResult(id)
+                                },
                                 onToggle = { checked ->
                                     viewModel.toggleChapterCompletion(subject.subject, chapter.name, checked)
                                 },
@@ -187,6 +205,9 @@ fun ChapterItemRow(
     chapter: SyllabusChapter,
     isChecked: Boolean,
     sessions: List<com.example.data.StudySession>,
+    examResults: List<com.example.data.ChapterExamResult>,
+    onAddExamResult: (Double) -> Unit,
+    onDeleteExamResult: (Int) -> Unit,
     onToggle: (Boolean) -> Unit,
     onStartChapter: (String, String) -> Unit
 ) {
@@ -283,13 +304,30 @@ fun ChapterItemRow(
                 // Description
                 Text(chapter.description, color = GrayText, fontSize = 12.sp, lineHeight = 18.sp)
                 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
                 Divider(color = BorderColor.copy(alpha = 0.3f))
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
                 
-                // Chapter Stats Card
-                Text("চ্যাপ্টার স্টাডি অ্যানালাইসিস", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                Spacer(modifier = Modifier.height(8.dp))
+                // Chapter Stats Section
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Speed,
+                        contentDescription = "Stats Icon",
+                        tint = PrimaryTeal,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "চ্যাপ্টার স্টাডি অ্যানালাইসিস", 
+                        color = Color.White, 
+                        fontWeight = FontWeight.Bold, 
+                        fontSize = 13.sp
+                    )
+                }
+                Spacer(modifier = Modifier.height(10.dp))
                 
                 val totalMin = sessions.sumOf { it.durationMinutes }
                 val totalHrs = totalMin.toFloat() / 60f
@@ -301,18 +339,348 @@ fun ChapterItemRow(
                 val totalCount = sessions.size
                 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFF0F172A).copy(alpha = 0.4f))
+                        .border(1.dp, BorderColor.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                        .padding(12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("মোট পড়াশোনা: $formattedHrs ঘণ্টা", color = Color(0xFF2CD4A0), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        Text("মোট সেশন (সম্পূর্ণ): ${totalCount}টি", color = LightText, fontSize = 12.sp)
+                        Text("মোট সেশন (সম্পূর্ণ): ${totalCount}টি", color = LightText, fontSize = 11.sp)
                     }
-                    Column {
-                        Text("পোমোডোরো সেশন: ${pomodoroCount}টি", color = GrayText, fontSize = 11.sp)
-                        Text("ডিপ ওয়ার্ক সেশন: ${deepCount}টি", color = GrayText, fontSize = 11.sp)
-                        Text("সাধারণ সেশন: ${normalCount}টি", color = GrayText, fontSize = 11.sp)
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("পোমোডোরো সেশন: ${pomodoroCount}টি", color = GrayText, fontSize = 10.sp)
+                        Text("ডিপ ওয়ার্ক সেশন: ${deepCount}টি", color = GrayText, fontSize = 10.sp)
+                        Text("সাধারণ সেশন: ${normalCount}টি", color = GrayText, fontSize = 10.sp)
                     }
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+                Divider(color = BorderColor.copy(alpha = 0.3f))
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // Chapter Exam Section
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = "Exam Tracker",
+                        tint = OrangeAccent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "চ্যাপ্টার এক্সাম ট্র্যাকার (১০০ মার্ক)",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+
+                if (examResults.isNotEmpty()) {
+                    val avgScore = examResults.map { it.percentage }.average()
+                    val maxScore = examResults.map { it.percentage }.maxOrNull() ?: 0.0
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFF1E293B))
+                                .border(1.dp, BorderColor.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                .padding(10.dp)
+                        ) {
+                            Column {
+                                Text("গড় স্কোর", color = GrayText, fontSize = 10.sp)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = String.format("%.1f%%", avgScore),
+                                    color = if (avgScore >= 80.0) Color(0xFF2CD4A0) else if (avgScore >= 60.0) Color(0xFF3B82F6) else if (avgScore >= 40.0) Color(0xFFF59E0B) else Color(0xFFEF4444),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFF1E293B))
+                                .border(1.dp, BorderColor.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                .padding(10.dp)
+                        ) {
+                            Column {
+                                Text("সর্বোচ্চ স্কোর", color = GrayText, fontSize = 10.sp)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = String.format("%.1f%%", maxScore),
+                                    color = Color(0xFF3B82F6),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
+                    }
+
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        examResults.forEachIndexed { index, result ->
+                            val examNumNative = when (index + 1) {
+                                1 -> "১ম পরীক্ষা"
+                                2 -> "২য় পরীক্ষা"
+                                3 -> "৩য় পরীক্ষা"
+                                4 -> "৪র্থ পরীক্ষা"
+                                5 -> "৫ম পরীক্ষা"
+                                else -> "${index + 1}তম পরীক্ষা"
+                            }
+
+                            val scoreColor = if (result.percentage >= 80.0) {
+                                Color(0xFF10B981)
+                            } else if (result.percentage >= 60.0) {
+                                Color(0xFF3B82F6)
+                            } else if (result.percentage >= 40.0) {
+                                Color(0xFFF59E0B)
+                            } else {
+                                Color(0xFFEF4444)
+                            }
+
+                            val badgeBg = scoreColor.copy(alpha = 0.15f)
+
+                            val ratingText = if (result.percentage >= 80.0) {
+                                "অসাধারণ! 🌟"
+                            } else if (result.percentage >= 60.0) {
+                                "উত্তম 👍"
+                            } else if (result.percentage >= 40.0) {
+                                "চলতি 🎯"
+                            } else {
+                                "কমতি ⚠️"
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFF111827).copy(alpha = 0.8f))
+                                    .border(1.dp, BorderColor.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                                    .padding(12.dp)
+                            ) {
+                                Column {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(24.dp)
+                                                    .clip(CircleShape)
+                                                    .background(scoreColor.copy(alpha = 0.2f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = "${index + 1}",
+                                                    color = scoreColor,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 11.sp
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Column {
+                                                Text(
+                                                    text = examNumNative,
+                                                    color = LightText,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                                Text(
+                                                    text = ratingText,
+                                                    color = scoreColor,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                            }
+                                        }
+
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(badgeBg)
+                                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                            ) {
+                                                val percentStripped = if (result.percentage % 1.0 == 0.0) "${result.percentage.toInt()}" else String.format("%.1f", result.percentage)
+                                                Text(
+                                                    text = "$percentStripped%",
+                                                    color = scoreColor,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            androidx.compose.material3.IconButton(
+                                                onClick = { onDeleteExamResult(result.id) },
+                                                modifier = Modifier.size(24.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Close,
+                                                    contentDescription = "Delete result",
+                                                    tint = Color(0xFFEF4444).copy(alpha = 0.6f),
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    
+                                    LinearProgressIndicator(
+                                        progress = { (result.percentage / 100.0).toFloat() },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(4.dp)
+                                            .clip(RoundedCornerShape(2.dp)),
+                                        color = scoreColor,
+                                        trackColor = Color(0xFF1E293B)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                } else {
+                    Text(
+                        "কোনো পরীক্ষার ফলাফল এখনও যুক্ত করা হয়নি।",
+                        color = GrayText,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                }
+
+                // Add Mark Section
+                var scoreInput by remember { mutableStateOf("") }
+                var scoreError by remember { mutableStateOf(false) }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Modern Compact Input Field Box
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(42.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF0F172A).copy(alpha = 0.5f))
+                            .border(
+                                width = 1.dp,
+                                color = if (scoreError) Color(0xFFEF4444) else BorderColor.copy(alpha = 0.6f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .padding(horizontal = 12.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = "Percent icon",
+                                tint = OrangeAccent.copy(alpha = 0.7f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            
+                            Box(modifier = Modifier.weight(1f)) {
+                                if (scoreInput.isEmpty()) {
+                                    Text(
+                                        text = "পরীক্ষার মার্ক (%) উদা: ৮৫",
+                                        color = GrayText.copy(alpha = 0.6f),
+                                        fontSize = 12.sp,
+                                        fontFamily = com.example.ui.theme.HindSiliguri
+                                    )
+                                }
+                                
+                                androidx.compose.foundation.text.BasicTextField(
+                                    value = scoreInput,
+                                    onValueChange = { input ->
+                                        if (input.isEmpty() || input.toDoubleOrNull() != null) {
+                                            scoreInput = input
+                                            scoreError = false
+                                        }
+                                    },
+                                    singleLine = true,
+                                    textStyle = androidx.compose.ui.text.TextStyle(
+                                        color = Color.White,
+                                        fontSize = 12.sp,
+                                        fontFamily = com.example.ui.theme.HindSiliguri,
+                                        fontWeight = FontWeight.Medium
+                                    ),
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = KeyboardType.Number
+                                    ),
+                                    cursorBrush = androidx.compose.ui.graphics.SolidColor(Color(0xFF2CD4A0)),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // Sleek unified Button
+                    Button(
+                        onClick = {
+                            val score = scoreInput.toDoubleOrNull()
+                            if (score != null && score in 0.0..100.0) {
+                                onAddExamResult(score)
+                                scoreInput = ""
+                                scoreError = false
+                            } else {
+                                scoreError = true
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF2CD4A0)
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.height(42.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp)
+                    ) {
+                        Text(
+                            text = "যোগ করুন",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF0C1017),
+                            fontFamily = com.example.ui.theme.HindSiliguri
+                        )
+                    }
+                }
+                if (scoreError) {
+                    Text(
+                        text = "অনুগ্রহ করে ০ থেকে ১০০ এর মধ্যে একটি নম্বর দিন",
+                        color = Color(0xFFEF4444),
+                        fontSize = 11.sp,
+                        fontFamily = com.example.ui.theme.HindSiliguri,
+                        modifier = Modifier.padding(top = 6.dp, start = 4.dp)
+                    )
                 }
             }
         }
