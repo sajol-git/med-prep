@@ -42,6 +42,7 @@ fun SessionScreen(
         Box(
             modifier = Modifier
                 .fillMaxWidth(0.9f)
+                .widthIn(max = 480.dp)
                 .clip(RoundedCornerShape(24.dp))
                 .background(CardBackground)
                 .padding(24.dp)

@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -27,9 +28,11 @@ import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import com.example.data.StudySession
+import com.example.ui.components.TopAppBarSection
 import com.example.ui.theme.*
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -89,6 +92,9 @@ fun AnalysisScreen(viewModel: MainViewModel) {
     var selectedTab by remember { mutableStateOf("দৈনিক") }
     var historyTab by remember { mutableStateOf("সাধারণ") }
 
+    val configuration = LocalConfiguration.current
+    val isTablet = configuration.screenWidthDp >= 600
+
     val filteredSessions = remember(recentSessions, selectedTab) {
         val calNow = java.util.Calendar.getInstance()
         when (selectedTab) {
@@ -132,144 +138,257 @@ fun AnalysisScreen(viewModel: MainViewModel) {
         }
     }
 
+    val groupedBySubject = remember(filteredSessions) { filteredSessions.groupBy { it.subject } }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBackground)
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+        contentPadding = PaddingValues(bottom = 64.dp)
     ) {
-        item {
+        item(key = "header") {
             TopAppBarSection()
         }
-        item {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("স্টাডি ট্র্যাকিং লগ", color = LightText, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF1E293B))
-                        .padding(4.dp)
-                ) {
-                    TabButton("দৈনিক", selectedTab == "দৈনিক") { selectedTab = "দৈনিক" }
-                    TabButton("সাপ্তাহিক", selectedTab == "সাপ্তাহিক") { selectedTab = "সাপ্তাহিক" }
-                    TabButton("মাসিক", selectedTab == "মাসিক") { selectedTab = "মাসিক" }
-                }
-            }
-        }
-        item {
-            BarChartCard(selectedTab, recentSessions, filteredSessions)
-        }
-        item {
-            ExamScoreProgressChartCard(viewModel)
-        }
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("স্টাডি সেশন হিস্ট্রি", color = LightText, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF1E293B))
-                        .padding(4.dp)
-                ) {
-                    TabButton("সাধারণ", historyTab == "সাধারণ") { historyTab = "সাধারণ" }
-                    TabButton("বিষয়ভিত্তিক", historyTab == "বিষয়ভিত্তিক") { historyTab = "বিষয়ভিত্তিক" }
-                }
-            }
-        }
 
-        if (filteredSessions.isEmpty()) {
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFF0F172A))
-                        .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(16.dp))
-                        .padding(32.dp),
-                    contentAlignment = Alignment.Center
+        if (isTablet) {
+            item(key = "tablet_dashboard") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            imageVector = Icons.Default.HourglassEmpty,
-                            contentDescription = "Empty",
-                            tint = GrayText,
-                            modifier = Modifier.size(40.dp)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "কোনো স্টাডি সেশন রেকর্ড পাওয়া যায়নি",
-                            color = GrayText,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-            }
-        } else {
-            if (historyTab == "সাধারণ") {
-                items(filteredSessions) { session ->
-                    SessionHistoryCard(session)
-                }
-            } else {
-                val groupedBySubject = filteredSessions.groupBy { it.subject }
-                groupedBySubject.forEach { (subject, sessionsInSubject) ->
-                    item {
-                        val totalSubjectMin = sessionsInSubject.sumOf { it.durationMinutes }
-                        val totalSubjectHrs = totalSubjectMin.toFloat() / 60f
-                        val formattedSubjectHrs = if (totalSubjectHrs % 1f == 0f) totalSubjectHrs.toInt().toString() else String.format("%.1f", totalSubjectHrs)
-                        
-                        val toBngDigits = { numStr: String ->
-                            numStr.map { c ->
-                                if (c.isDigit()) (c - '0' + '০'.code).toChar() else c
-                            }.joinToString("")
-                        }
-                        val bngSubjectHrs = toBngDigits(formattedSubjectHrs)
-                        
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(Color(0xFF1E293B).copy(alpha = 0.2f))
-                                .border(1.dp, Color(0xFF1E293B).copy(alpha = 0.6f), RoundedCornerShape(16.dp))
-                                .padding(12.dp)
+                    // Left Column: Charts and Performance
+                    Column(
+                        modifier = Modifier.weight(1.1f),
+                        verticalArrangement = Arrangement.spacedBy(20.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = getSubjectEnglish(subject),
-                                        color = Color(0xFF60A5FA),
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp
+                            Text("স্টাডি ট্র্যাকিং লগ", color = LightText, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                            Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFF1E293B))
+                                    .padding(4.dp)
+                            ) {
+                                TabButton("দৈনিক", selectedTab == "দৈনিক") { selectedTab = "দৈনিক" }
+                                TabButton("সাপ্তাহিক", selectedTab == "সাপ্তাহিক") { selectedTab = "সাপ্তাহিক" }
+                                TabButton("মাসিক", selectedTab == "মাসিক") { selectedTab = "মাসিক" }
+                            }
+                        }
+
+                        BarChartCard(selectedTab, recentSessions, filteredSessions)
+                        ExamScoreProgressChartCard(viewModel)
+                    }
+
+                    // Right Column: Session History
+                    Column(
+                        modifier = Modifier.weight(0.9f),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("স্টাডি সেশন হিস্ট্রি", color = LightText, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFF1E293B))
+                                    .padding(4.dp)
+                            ) {
+                                TabButton("সাধারণ", historyTab == "সাধারণ") { historyTab = "সাধারণ" }
+                                TabButton("বিষয়ভিত্তিক", historyTab == "বিষয়ভিত্তিক") { historyTab = "বিষয়ভিত্তিক" }
+                            }
+                        }
+
+                        if (filteredSessions.isEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(Color(0xFF0F172A))
+                                    .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(16.dp))
+                                    .padding(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        imageVector = Icons.Default.HourglassEmpty,
+                                        contentDescription = "Empty",
+                                        tint = GrayText,
+                                        modifier = Modifier.size(36.dp)
                                     )
+                                    Spacer(modifier = Modifier.height(10.dp))
                                     Text(
-                                        text = "মোট $bngSubjectHrs ঘণ্টা",
-                                        color = Color(0xFF2CD4A0),
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp
+                                        text = "কোনো স্টাডি সেশন রেকর্ড পাওয়া যায়নি",
+                                        color = GrayText,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium
                                     )
                                 }
-                                Divider(color = Color(0xFF1E293B).copy(alpha = 0.3f))
-                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+                        } else {
+                            if (historyTab == "সাধারণ") {
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    sessionsInSubject.forEach { session ->
+                                    filteredSessions.forEach { session ->
                                         SessionHistoryCard(session)
+                                    }
+                                }
+                            } else {
+                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    groupedBySubject.forEach { (subject, sessionsInSubject) ->
+                                        SubjectHistoryGroup(subject, sessionsInSubject)
                                     }
                                 }
                             }
                         }
                     }
+                }
+            }
+        } else {
+            item(key = "tracking_header") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("স্টাডি ট্র্যাকিং লগ", color = LightText, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF1E293B))
+                            .padding(4.dp)
+                    ) {
+                        TabButton("দৈনিক", selectedTab == "দৈনিক") { selectedTab = "দৈনিক" }
+                        TabButton("সাপ্তাহিক", selectedTab == "সাপ্তাহিক") { selectedTab = "সাপ্তাহিক" }
+                        TabButton("মাসিক", selectedTab == "মাসিক") { selectedTab = "মাসিক" }
+                    }
+                }
+            }
+            item(key = "bar_chart") {
+                BarChartCard(selectedTab, recentSessions, filteredSessions)
+            }
+            item(key = "exam_chart") {
+                ExamScoreProgressChartCard(viewModel)
+            }
+            item(key = "history_header") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("স্টাডি সেশন হিস্ট্রি", color = LightText, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF1E293B))
+                            .padding(4.dp)
+                    ) {
+                        TabButton("সাধারণ", historyTab == "সাধারণ") { historyTab = "সাধারণ" }
+                        TabButton("বিষয়ভিত্তিক", historyTab == "বিষয়ভিত্তিক") { historyTab = "বিষয়ভিত্তিক" }
+                    }
+                }
+            }
+
+            if (filteredSessions.isEmpty()) {
+                item(key = "empty_history") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFF0F172A))
+                            .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(16.dp))
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.HourglassEmpty,
+                                contentDescription = "Empty",
+                                tint = GrayText,
+                                modifier = Modifier.size(40.dp)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "কোনো স্টাডি সেশন রেকর্ড পাওয়া যায়নি",
+                                color = GrayText,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            } else {
+                if (historyTab == "সাধারণ") {
+                    items(filteredSessions, key = { it.id }) { session ->
+                        SessionHistoryCard(session)
+                    }
+                } else {
+                    groupedBySubject.forEach { (subject, sessionsInSubject) ->
+                        item(key = "subj_$subject") {
+                            SubjectHistoryGroup(subject, sessionsInSubject)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SubjectHistoryGroup(subject: String, sessionsInSubject: List<StudySession>) {
+    val totalSubjectMin = remember(sessionsInSubject) { sessionsInSubject.sumOf { it.durationMinutes } }
+    val totalSubjectHrs = totalSubjectMin.toFloat() / 60f
+    val formattedSubjectHrs = if (totalSubjectHrs % 1f == 0f) totalSubjectHrs.toInt().toString() else String.format(java.util.Locale.US, "%.1f", totalSubjectHrs)
+    
+    val toBngDigits = { numStr: String ->
+        numStr.map { c ->
+            if (c.isDigit()) (c - '0' + '০'.code).toChar() else c
+        }.joinToString("")
+    }
+    val bngSubjectHrs = toBngDigits(formattedSubjectHrs)
+    
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFF1E293B).copy(alpha = 0.2f))
+            .border(1.dp, Color(0xFF1E293B).copy(alpha = 0.6f), RoundedCornerShape(16.dp))
+            .padding(12.dp)
+    ) {
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = getSubjectEnglish(subject),
+                    color = Color(0xFF60A5FA),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+                Text(
+                    text = "মোট $bngSubjectHrs ঘণ্টা",
+                    color = Color(0xFF2CD4A0),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp
+                )
+            }
+            Divider(color = Color(0xFF1E293B).copy(alpha = 0.3f))
+            Spacer(modifier = Modifier.height(8.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                sessionsInSubject.forEach { session ->
+                    SessionHistoryCard(session)
                 }
             }
         }
@@ -1140,6 +1259,32 @@ fun RechartsLineChart(
     val lineColor = Color(0xFF3B82F6) // Recharts-style beautiful vibrant blue
     val areaStartColor = Color(0xFF3B82F6).copy(alpha = 0.22f)
     val areaEndColor = Color.Transparent
+
+    // Pre-allocated Paint objects to prevent GC churn on low-spec tablets
+    val yAxisPaint = remember {
+        android.graphics.Paint().apply {
+            color = android.graphics.Color.parseColor("#94A3B8")
+            textSize = 24f
+            isAntiAlias = true
+            typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+        }
+    }
+    val activeNumberPaint = remember {
+        android.graphics.Paint().apply {
+            color = android.graphics.Color.WHITE
+            textSize = 20f
+            isAntiAlias = true
+            typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+        }
+    }
+    val inactiveNumberPaint = remember {
+        android.graphics.Paint().apply {
+            color = android.graphics.Color.parseColor("#94A3B8")
+            textSize = 20f
+            isAntiAlias = true
+            typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
+        }
+    }
     
     Box(
         modifier = modifier
@@ -1150,40 +1295,81 @@ fun RechartsLineChart(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(data) {
-                    awaitPointerEventScope {
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.firstOrNull()
-                            if (change != null && change.pressed) {
-                                val touchOffset = change.position
-                                val width = this@pointerInput.size.width.toFloat()
-                                val height = this@pointerInput.size.height.toFloat()
-                                val paddingEnd = 24f
-                                val paddingStart = 64f
-                                val chartWidth = width - paddingStart - paddingEnd
-                                
-                                val pointsCount = data.size
-                                if (pointsCount > 0) {
-                                    val stepX = if (pointsCount > 1) chartWidth / (pointsCount - 1) else chartWidth
-                                    
-                                    var closestIndex = 0
-                                    var minDistance = Float.MAX_VALUE
-                                    
-                                    for (i in 0 until pointsCount) {
-                                        val cx = paddingStart + i * stepX
-                                        val distance = kotlin.math.abs(touchOffset.x - cx)
-                                        if (distance < minDistance) {
-                                            minDistance = distance
-                                            closestIndex = i
-                                        }
-                                    }
-                                    if (minDistance < stepX / 2f || minDistance < 50f) {
-                                        onPointSelected(closestIndex)
-                                    }
+                    val handleTouch: (Offset) -> Unit = { touchOffset ->
+                        val width = size.width.toFloat()
+                        val paddingEnd = 24f
+                        val paddingStart = 64f
+                        val chartWidth = width - paddingStart - paddingEnd
+                        val pointsCount = data.size
+                        if (pointsCount > 0 && chartWidth > 0) {
+                            val stepX = if (pointsCount > 1) chartWidth / (pointsCount - 1) else chartWidth
+                            var closestIndex = 0
+                            var minDistance = Float.MAX_VALUE
+                            for (i in 0 until pointsCount) {
+                                val cx = paddingStart + i * stepX
+                                val distance = kotlin.math.abs(touchOffset.x - cx)
+                                if (distance < minDistance) {
+                                    minDistance = distance
+                                    closestIndex = i
                                 }
+                            }
+                            if (minDistance < stepX / 2f || minDistance < 50f) {
+                                onPointSelected(closestIndex)
                             }
                         }
                     }
+
+                    detectTapGestures(onTap = handleTouch)
+                }
+                .pointerInput(data) {
+                    detectDragGestures(
+                        onDragStart = { offset ->
+                            val width = size.width.toFloat()
+                            val paddingEnd = 24f
+                            val paddingStart = 64f
+                            val chartWidth = width - paddingStart - paddingEnd
+                            val pointsCount = data.size
+                            if (pointsCount > 0 && chartWidth > 0) {
+                                val stepX = if (pointsCount > 1) chartWidth / (pointsCount - 1) else chartWidth
+                                var closestIndex = 0
+                                var minDistance = Float.MAX_VALUE
+                                for (i in 0 until pointsCount) {
+                                    val cx = paddingStart + i * stepX
+                                    val distance = kotlin.math.abs(offset.x - cx)
+                                    if (distance < minDistance) {
+                                        minDistance = distance
+                                        closestIndex = i
+                                    }
+                                }
+                                if (minDistance < stepX / 2f || minDistance < 50f) {
+                                    onPointSelected(closestIndex)
+                                }
+                            }
+                        },
+                        onDrag = { change, _ ->
+                            val width = size.width.toFloat()
+                            val paddingEnd = 24f
+                            val paddingStart = 64f
+                            val chartWidth = width - paddingStart - paddingEnd
+                            val pointsCount = data.size
+                            if (pointsCount > 0 && chartWidth > 0) {
+                                val stepX = if (pointsCount > 1) chartWidth / (pointsCount - 1) else chartWidth
+                                var closestIndex = 0
+                                var minDistance = Float.MAX_VALUE
+                                for (i in 0 until pointsCount) {
+                                    val cx = paddingStart + i * stepX
+                                    val distance = kotlin.math.abs(change.position.x - cx)
+                                    if (distance < minDistance) {
+                                        minDistance = distance
+                                        closestIndex = i
+                                    }
+                                }
+                                if (minDistance < stepX / 2f || minDistance < 50f) {
+                                    onPointSelected(closestIndex)
+                                }
+                            }
+                        }
+                    )
                 }
         ) {
             val width = size.width
@@ -1213,14 +1399,8 @@ fun RechartsLineChart(
                     pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
                 )
                 
-                // Native canvas to draw Bengali percentage labels on the vertical Y axis
+                // Native canvas to draw percentage labels
                 drawContext.canvas.nativeCanvas.apply {
-                    val paint = android.graphics.Paint().apply {
-                        color = android.graphics.Color.parseColor("#94A3B8") // GrayText
-                        textSize = 24f
-                        isAntiAlias = true
-                        typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
-                    }
                     val labelBng = when (step) {
                         0f -> "০%"
                         0.25f -> "২৫%"
@@ -1233,7 +1413,7 @@ fun RechartsLineChart(
                         labelBng,
                         12f,
                         gy + 8f,
-                        paint
+                        yAxisPaint
                     )
                 }
             }
@@ -1334,12 +1514,7 @@ fun RechartsLineChart(
                 
                 // Draw sequence indicator number at the bottom for navigation reference
                 drawContext.canvas.nativeCanvas.apply {
-                    val paint = android.graphics.Paint().apply {
-                        color = if (index == selectedPointIndex) android.graphics.Color.WHITE else android.graphics.Color.parseColor("#94A3B8")
-                        textSize = 20f
-                        isAntiAlias = true
-                        typeface = android.graphics.Typeface.create("sans-serif", if (index == selectedPointIndex) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
-                    }
+                    val paint = if (index == selectedPointIndex) activeNumberPaint else inactiveNumberPaint
                     val indicatorStr = when (index + 1) {
                         1 -> "১"
                         2 -> "২"

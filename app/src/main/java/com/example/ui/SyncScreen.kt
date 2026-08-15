@@ -41,6 +41,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.data.FirebaseBackupManager
+import com.example.ui.components.TopAppBarSection
 import com.example.ui.theme.*
 import kotlinx.coroutines.launch
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -185,18 +186,24 @@ fun SystemScreen(viewModel: MainViewModel) {
         autoBackupEnabled = backupManager.autoBackupEnabled
     }
 
-    LazyColumn(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(DarkBackground)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(bottom = 48.dp)
+            .background(DarkBackground),
+        contentAlignment = Alignment.TopCenter
     ) {
-        // --- HEADER SECTION ---
-        item {
-            TopAppBarSection()
-        }
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .widthIn(max = 840.dp)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(bottom = 48.dp)
+        ) {
+            // --- HEADER SECTION ---
+            item {
+                TopAppBarSection()
+            }
 
         // --- SYSTEM SETTINGS PANEL (SOUNDS) ---
         item {
@@ -798,6 +805,7 @@ fun SystemScreen(viewModel: MainViewModel) {
                 }
             }
         }
+    }
     }
 
     // --- GOOGLE OAUTH DIALOG POPUP ---

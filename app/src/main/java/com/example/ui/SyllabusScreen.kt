@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,6 +47,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.shape.CircleShape
+import com.example.ui.components.TopAppBarSection
 import com.example.ui.theme.*
 import com.example.data.SyllabusSubject
 import com.example.data.SyllabusChapter
@@ -73,21 +75,82 @@ fun SyllabusScreen(viewModel: MainViewModel, onStartChapter: (String, String) ->
     val recentSessions by viewModel.recentSessions.collectAsStateWithLifecycle()
     val examResultsMap by viewModel.chapterExamResults.collectAsStateWithLifecycle()
 
+    val configuration = LocalConfiguration.current
+    val isTablet = configuration.screenWidthDp >= 600
+
+    // Pre-group sessions to make lookups O(1) instead of nested O(N*M) list filters
+    val chapterSessionMap = remember(recentSessions) {
+        recentSessions.groupBy {
+            getSubjectEnglish(it.subject).lowercase() to it.chapter.trim().lowercase()
+        }
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBackground)
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(bottom = 64.dp)
     ) {
-        item {
+        item(key = "header") {
             TopAppBarSection()
         }
-        items(viewModel.syllabusSubjects) { subject ->
-            ExpandableSubjectCard(subject, completedChapters, recentSessions, examResultsMap, viewModel, onStartChapter)
-        }
-        item {
-            Spacer(modifier = Modifier.height(80.dp)) // padding for bottom nav
+
+        if (isTablet) {
+            val subjects = viewModel.syllabusSubjects
+            val half = (subjects.size + 1) / 2
+            val col1 = subjects.take(half)
+            val col2 = subjects.drop(half)
+
+            item(key = "tablet_subjects") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        col1.forEach { subject ->
+                            ExpandableSubjectCard(
+                                subject = subject,
+                                completedChapters = completedChapters,
+                                chapterSessionMap = chapterSessionMap,
+                                examResultsMap = examResultsMap,
+                                viewModel = viewModel,
+                                onStartChapter = onStartChapter
+                            )
+                        }
+                    }
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        col2.forEach { subject ->
+                            ExpandableSubjectCard(
+                                subject = subject,
+                                completedChapters = completedChapters,
+                                chapterSessionMap = chapterSessionMap,
+                                examResultsMap = examResultsMap,
+                                viewModel = viewModel,
+                                onStartChapter = onStartChapter
+                            )
+                        }
+                    }
+                }
+            }
+        } else {
+            items(viewModel.syllabusSubjects, key = { it.subject }) { subject ->
+                ExpandableSubjectCard(
+                    subject = subject,
+                    completedChapters = completedChapters,
+                    chapterSessionMap = chapterSessionMap,
+                    examResultsMap = examResultsMap,
+                    viewModel = viewModel,
+                    onStartChapter = onStartChapter
+                )
+            }
         }
     }
 }
@@ -96,36 +159,39 @@ fun SyllabusScreen(viewModel: MainViewModel, onStartChapter: (String, String) ->
 fun ExpandableSubjectCard(
     subject: SyllabusSubject,
     completedChapters: Set<String>,
-    recentSessions: List<com.example.data.StudySession>,
+    chapterSessionMap: Map<Pair<String, String>, List<com.example.data.StudySession>>,
     examResultsMap: Map<String, List<com.example.data.ChapterExamResult>>,
     viewModel: MainViewModel,
     onStartChapter: (String, String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    val icon = when {
-        subject.subject.contains("Botany") -> Icons.Rounded.Eco
-        subject.subject.contains("Zoology") -> Icons.Rounded.Pets
-        subject.subject.contains("Chemistry") -> Icons.Rounded.Science
-        subject.subject.contains("Physics") -> Icons.Rounded.Speed
-        subject.subject.contains("English") -> Icons.Rounded.MenuBook
-        subject.subject.contains("General Knowledge") -> Icons.Rounded.Public
-        else -> Icons.Rounded.HistoryEdu
+    val icon = remember(subject.subject) {
+        when {
+            subject.subject.contains("Botany") -> Icons.Rounded.Eco
+            subject.subject.contains("Zoology") -> Icons.Rounded.Pets
+            subject.subject.contains("Chemistry") -> Icons.Rounded.Science
+            subject.subject.contains("Physics") -> Icons.Rounded.Speed
+            subject.subject.contains("English") -> Icons.Rounded.MenuBook
+            subject.subject.contains("General Knowledge") -> Icons.Rounded.Public
+            else -> Icons.Rounded.HistoryEdu
+        }
     }
 
-    val iconTint = when {
-        subject.subject.contains("Botany") -> Color(0xFF10B981)
-        subject.subject.contains("Zoology") -> Color(0xFF3B82F6)
-        subject.subject.contains("Chemistry") -> Color(0xFFF59E0B)
-        subject.subject.contains("Physics") -> Color(0xFF8B5CF6)
-        subject.subject.contains("English") -> Color(0xFFEC4899)
-        subject.subject.contains("General") -> Color(0xFF06B6D4)
-        else -> PrimaryTeal
+    val iconTint = remember(subject.subject) {
+        when {
+            subject.subject.contains("Botany") -> Color(0xFF10B981)
+            subject.subject.contains("Zoology") -> Color(0xFF3B82F6)
+            subject.subject.contains("Chemistry") -> Color(0xFFF59E0B)
+            subject.subject.contains("Physics") -> Color(0xFF8B5CF6)
+            subject.subject.contains("English") -> Color(0xFFEC4899)
+            subject.subject.contains("General") -> Color(0xFF06B6D4)
+            else -> PrimaryTeal
+        }
     }
 
-    // Filter sessions belonging to this subject
-    val subjectSessions = recentSessions.filter {
-        getSubjectEnglish(it.subject).equals(getSubjectEnglish(subject.subject), ignoreCase = true)
+    val subjectEnglishKey = remember(subject.subject) {
+        getSubjectEnglish(subject.subject).lowercase()
     }
 
     Box(
@@ -170,9 +236,8 @@ fun ExpandableSubjectCard(
                         subject.chapters.forEach { chapter ->
                             val key = "${subject.subject}_${chapter.name}"
                             val isChecked = completedChapters.contains(key)
-                            val chapterSessions = subjectSessions.filter {
-                                it.chapter.trim().equals(chapter.name.trim(), ignoreCase = true)
-                            }
+                            val chapterKey = subjectEnglishKey to chapter.name.trim().lowercase()
+                            val chapterSessions = chapterSessionMap[chapterKey] ?: emptyList()
                             val examResults = examResultsMap[key] ?: emptyList()
                             ChapterItemRow(
                                 subjectName = subject.subject,

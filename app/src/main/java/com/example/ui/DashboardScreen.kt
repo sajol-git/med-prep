@@ -5,7 +5,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -18,13 +17,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.ui.res.painterResource
+import com.example.ui.components.TopAppBarSection
 import com.example.ui.theme.*
-import kotlin.math.roundToInt
 
 private fun toBanglaDigits(num: Any): String {
     return num.toString()
@@ -36,47 +35,75 @@ private fun toBanglaDigitsFloat(num: Float): String {
 
 @Composable
 fun DashboardScreen(viewModel: MainViewModel) {
-    val recentSessions by viewModel.recentSessions.collectAsStateWithLifecycle()
     val coreProgress by viewModel.coreProgress.collectAsStateWithLifecycle()
+    val configuration = LocalConfiguration.current
+    val isTablet = configuration.screenWidthDp >= 600
 
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBackground)
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(bottom = 24.dp)
     ) {
-        item {
+        item(key = "header") {
             TopAppBarSection()
         }
-        item {
-            DailyProgressCard(viewModel.todayStudyHours, viewModel.targetHours)
-        }
-        item {
-            WeeklyStatsCard(viewModel.weeklyStudyHours, viewModel.averageDailyStudyHours)
-        }
-        item {
-            MedicalCountdownCard()
-        }
-        item {
-            SyllabusProgressCard(coreProgress)
+
+        if (isTablet) {
+            item(key = "tablet_content") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        DailyProgressCard(viewModel.todayStudyHours, viewModel.targetHours)
+                        MedicalCountdownCard()
+                    }
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        WeeklyStatsCard(viewModel.weeklyStudyHours, viewModel.averageDailyStudyHours)
+                        SyllabusProgressCard(coreProgress)
+                    }
+                }
+            }
+        } else {
+            item(key = "daily_progress") {
+                DailyProgressCard(viewModel.todayStudyHours, viewModel.targetHours)
+            }
+            item(key = "weekly_stats") {
+                WeeklyStatsCard(viewModel.weeklyStudyHours, viewModel.averageDailyStudyHours)
+            }
+            item(key = "countdown") {
+                MedicalCountdownCard()
+            }
+            item(key = "syllabus_progress") {
+                SyllabusProgressCard(coreProgress)
+            }
         }
     }
 }
 
 @Composable
 fun MedicalCountdownCard() {
-    val startDate = java.util.Calendar.getInstance().apply { set(2026, java.util.Calendar.JUNE, 1, 0, 0, 0) }
-    val endDate = java.util.Calendar.getInstance().apply { set(2026, java.util.Calendar.OCTOBER, 31, 23, 59, 59) }
-    val now = java.util.Calendar.getInstance()
-    
-    val totalDays = ((endDate.timeInMillis - startDate.timeInMillis) / (1000 * 60 * 60 * 24)).coerceAtLeast(1)
-    
-    val daysPassed = if (now.before(startDate)) 0L else if (now.after(endDate)) totalDays else ((now.timeInMillis - startDate.timeInMillis) / (1000 * 60 * 60 * 24))
-    val daysRemaining = totalDays - daysPassed
-
-    val progressRaw = if (totalDays > 0) (daysPassed.toFloat() / totalDays.toFloat()) else 0f
-    val progress = if (progressRaw.isNaN()) 0f else progressRaw.coerceIn(0f, 1f)
+    val (daysPassed, daysRemaining, progress) = remember {
+        val startDate = java.util.Calendar.getInstance().apply { set(2026, java.util.Calendar.JUNE, 1, 0, 0, 0) }
+        val endDate = java.util.Calendar.getInstance().apply { set(2026, java.util.Calendar.OCTOBER, 31, 23, 59, 59) }
+        val now = java.util.Calendar.getInstance()
+        
+        val totalDays = ((endDate.timeInMillis - startDate.timeInMillis) / (1000 * 60 * 60 * 24)).coerceAtLeast(1)
+        val passed = if (now.before(startDate)) 0L else if (now.after(endDate)) totalDays else ((now.timeInMillis - startDate.timeInMillis) / (1000 * 60 * 60 * 24))
+        val remaining = totalDays - passed
+        val progRaw = if (totalDays > 0) (passed.toFloat() / totalDays.toFloat()) else 0f
+        val prog = if (progRaw.isNaN()) 0f else progRaw.coerceIn(0f, 1f)
+        Triple(passed, remaining, prog)
+    }
 
     Box(
         modifier = Modifier
@@ -119,64 +146,6 @@ fun MedicalCountdownCard() {
                     Text("${toBanglaDigits(daysRemaining)} দিন", color = Color(0xFF3B82F6), fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
             }
-        }
-    }
-}
-
-@Composable
-fun TopAppBarSection() {
-    val timeFormat = remember { java.text.SimpleDateFormat("h:mm a", java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("Asia/Dhaka") } }
-    val dateFormat = remember { java.text.SimpleDateFormat("d MMMM, yyyy", java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("Asia/Dhaka") } }
-
-    var currentTimeString by remember { mutableStateOf(timeFormat.format(java.util.Calendar.getInstance().time)) }
-    var currentDateString by remember { mutableStateOf(dateFormat.format(java.util.Calendar.getInstance().time)) }
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            val now = java.util.Calendar.getInstance().time
-            currentTimeString = timeFormat.format(now)
-            currentDateString = dateFormat.format(now)
-            kotlinx.coroutines.delay(1000)
-        }
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFFAFAFB)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(id = com.example.R.drawable.ic_custom_logo),
-                    contentDescription = "MED-PREP Brand Logo",
-                    tint = Color.Unspecified,
-                    modifier = Modifier.size(38.dp)
-                )
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column {
-                Text("MED-PREP", color = LightText, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Spacer(modifier = Modifier.height(2.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF2CD4A0)))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("টার্গেট: ঢাকা মেডিকেল", color = Color(0xFF2CD4A0), fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                }
-            }
-        }
-        Column(horizontalAlignment = Alignment.End) {
-            Text(currentTimeString, color = LightText, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(currentDateString, color = GrayText, fontSize = 12.sp)
         }
     }
 }
