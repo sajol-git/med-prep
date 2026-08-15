@@ -1,21 +1,38 @@
 # Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Keep all of our application classes to prevent any class/method stripping
+-keep class com.example.** { *; }
+-keep interface com.example.** { *; }
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Keep Room database classes and annotations
+-keep class * extends androidx.room.RoomDatabase
+-keep class * extends androidx.room.Dao
+-keep class androidx.room.Room { *; }
+-dontwarn androidx.room.**
+-dontwarn androidx.sqlite.db.**
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Keep Moshi / JSON serialization classes
+-keep class com.squareup.moshi.** { *; }
+-keep interface com.squareup.moshi.** { *; }
+-dontwarn com.squareup.moshi.**
+
+# Keep Firebase classes (if used in cloud sync/auth)
+-keep class com.google.firebase.** { *; }
+-dontwarn com.google.firebase.**
+
+# Keep Jetpack Compose classes
+-keep class androidx.compose.** { *; }
+-dontwarn androidx.compose.**
+
+# Keep Kotlin reflection metadata
+-keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod,SourceFile,LineNumberTable
+-dontwarn kotlin.reflect.**
+
+# OkHttp optional dependencies
+-dontwarn org.bouncycastle.jsse.**
+-dontwarn org.bouncycastle.provider.**
+-dontwarn org.conscrypt.**
+-dontwarn org.openjsse.**
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-dontwarn retrofit2.**
